@@ -52,7 +52,7 @@ contract Raffle is VRFConsumerBaseV2, KeeperCompatibleInterface {
 
   /* Functions */
   constructor(
-    address vrfCoordinatorV2, // contract address
+    address vrfCoordinatorV2, // address where we get the random number from.
     uint256 entranceFee,
     bytes32 gasLane,
     uint64 subscriptionId,
@@ -78,6 +78,8 @@ contract Raffle is VRFConsumerBaseV2, KeeperCompatibleInterface {
     }
     s_players.push(payable(msg.sender));
     // Event: Naming convention is to reverse the function name
+    // Whenever we update a dynamic object like an array or mapping, always want to emit an event, make more sense in terms of front end.
+    // Events allow you to print information without storing it which takes up much more gas. Each event tied to smart contract which emitted the event.
     emit RaffleEnter(msg.sender);
   }
 
@@ -123,6 +125,7 @@ contract Raffle is VRFConsumerBaseV2, KeeperCompatibleInterface {
 
     // To pick a random winner, we first must request a random number, once we get it do something with it (2 transaction process)
     s_raffleState = RaffleState.CALCULATING;
+    // requestRandomWords returns a uint256 request id, which is a unique id that determines who is requesting this and other info.
     uint256 requestId = i_vrfCoordinator.requestRandomWords(
       i_gasLane, // The gas lane key hash value, which is the maximum gas price you are willing to pay for a request in wei.
       i_subscriptionId, // The subscription ID that this contract uses for funding requests.
@@ -133,17 +136,14 @@ contract Raffle is VRFConsumerBaseV2, KeeperCompatibleInterface {
     emit RequestedRaffleWinner(requestId);
   }
 
-  function fulfillRandomWords(
-    uint256, /* requestId */
-    uint256[] memory randomWords
-  ) internal override {
+  function fulfillRandomWords(uint256, uint256[] memory randomWords) internal override {
     uint256 indexOfWinner = randomWords[0] % s_players.length;
     address payable recentWinner = s_players[indexOfWinner];
-    s_recentWinner = recentWinner;
+    s_recentWinner = recentWinner; // stores the winners address
     s_raffleState = RaffleState.OPEN;
     s_players = new address payable[](0);
     s_lastTimeStamp = block.timestamp;
-    (bool success, ) = recentWinner.call{value: address(this).balance}("");
+    (bool success, ) = recentWinner.call{value: address(this).balance}(""); // sends the money to the winner
     if (!success) {
       revert Raffle__TransferFailed();
     }
